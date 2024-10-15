@@ -165,15 +165,85 @@ extern RC createTable (char *name, Schema *schema){
 }   
 
 //OPEN TABLE:
+//Steps to perform:
+//Open page file with the help of initializing buffer pool,
+// Pin the first page and deserialize Schema after reading the serialized schema
+// Store table's metadata and then unpin after deserialization
+extern RC openTable(RM_TableData *rel, char *name){
+    //Allocating memory for record manager struct
+    RecordManager *record_mgr = (RecordManager *) malloc(sizeof(RecordManager));
+    if(record_mgr == NULL)  return RC_ERROR;
+    BM_BufferPool *bufferpool = (BM_BufferPool *)malloc(sizeof(BM_BufferPool));
+    rel->mgmtData = record_mgr;
+    rel->name = name;
+    //Initializing the buffer pool
+    RC status = initBufferPool(&record_mgr->poolconfig, name, maxPages, RS_FIFO, NULL);
+    if(status!=RC_OK){
+        free(record_mgr);
+        return status;
+    }
 
+    //Open the page file corresponding to the table
+    SM_FileHandle fh;
+    status = openPageFile(name, &fh);
+    if(status != RC_OK){
+        shutdownBufferPool(&record_mgr->poolconfig);
+        free(record_mgr);
+        return status;
+    }
+    //Pin the first block
+    //Pinning refers to loading a specific page form the disk into memory
+    BM_PageHandle pH;
+    status = pinPage(&record_mgr->poolconfig, &pH, 0); // 0 represents the page number
+    if(status != RC_OK){
+        shutdownBufferPool(&record_mgr->poolconfig);
+        free(record_mgr);
+        return status;
+    }
+    //Extract data from  pinned page
+    char *page_data = pH.data;
+    int num_tuples, start_page, last_page, max_slots;
+    
+    memcpy(&num_tuples, page_data, sizeof(int));
+    page_data += sizeof(int);
+    memcpy(&start_page, page_data, sizeof(int));
+    page_data += sizeof(int);
+    memcpy(&last_page, page_data, sizeof(int));
+    page_data += sizeof(int);
+    memcpy(&max_slots, page_data, sizeof(int));
 
+    // Set buffer pool configuration in RecordManager
+    record_mgr->poolconfig = *bufferpool;  // Store buffer pool in RecordManager
+    record_mgr->num_tuples = num_tuples;
+    record_mgr->start_page = start_page;
+    record_mgr->last_page = last_page;
+    record_mgr->max_slots = max_slots;
 
+    // Deserialize schema
+    Schema *schema = deserializeSchema(page_data);
 
+    // Assign the schema and name to the RM_TableData structure
+    rel->schema = schema;
+    rel->name = name;
+    rel->mgmtData = (void *)record_mgr;
+
+    // Unpin the page and release resources
+    status = unpinPage(bufferpool, &pH);
+    if (status != RC_OK) {
+        free(record_mgr);
+        free(schema);
+        shutdownBufferPool(bufferpool);
+        free(bufferpool);
+        return status;
+    }
+    return RC_OK;
+}
 
 //Close Table
 extern RC closeTable(RM_TableData *rel){
     RecordManager *record_mgr = rel->mgmtData;
     shutdownBufferPool(&record_mgr->poolconfig);
+    free(record_mgr);
     return RC_OK;
 }
 
