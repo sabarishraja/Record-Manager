@@ -261,3 +261,62 @@ extern int getNumTuples (RM_TableData *rel){
     return record_mgr->num_tuples;
 }
 
+/********************************  RECORD FUNCTIONS  **************************************************/
+//Series of steps to be done in insertRecord function
+//Pin the last page of buffer pool and find free slot to write record into the page
+//Serialize the record into page and then unpin after insertion
+
+extern RC insertRecord (RM_TableData *rel, Record *record){
+    RecordManager *record_mgr = (RecordManager *)rel->mgmtData;
+    BM_PageHandle pH;
+    //Pin the last page of the record manager
+    RC status = pinPage(&record_mgr->poolconfig, &pH, record_mgr->last_page);
+    if(status!=RC_OK){
+        return status;
+    }
+    //Finding free slot in the pin page using findFreeSlot function
+    int free_slot_in_page = findFreeSlot(pH.data, getRecordSize(rel->schema));
+    //In case free slot is not found, the pinned page is unpinned
+    if(free_slot_in_page == -1){
+        status = unpinPage(&record_mgr->poolconfig, &pH);
+        if(status != RC_OK){
+            return status;
+        }
+        //Pin a new page and then increment the last page
+        record_mgr->last_page += 1;
+        status = pinPage(&record_mgr->poolconfig, &pH, record_mgr->last_page);
+        if(status != RC_OK){
+            return status;
+        }
+        free_slot_in_page = findFreeSlot(pH.data, getRecordSize(rel->schema));
+    }
+    //Claculate the record's position in page
+    int record_size = getRecordSize(rel->schema);
+    char *slot_pointer = pH.data + (free_slot_in_page * record_size);
+
+    //Serialize the record into the page
+    memcpy(slot_pointer, record->data, record_size);
+
+    //Set the record's id with page number and slot number
+    record->id.page = record_mgr->last_page;
+    record->id.slot = free_slot_in_page;
+
+    //markDirty function should be used to understand that is has been modified
+    status = markDirty(&record_mgr->poolconfig, &pH);
+    if(status!=RC_OK){
+        return status;
+    }
+
+    //As the record has been inserted now, the page can be unpinned
+    status = unpinPage(&record_mgr->poolconfig, &pH);
+    if(status != RC_OK){
+        return status;
+    }
+
+    //Update the total number of tuples
+    record_mgr->num_tuples += 1;
+
+    return RC_OK;
+
+}
+
