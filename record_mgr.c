@@ -399,12 +399,7 @@ extern RC startScan (RM_TableData *rel, RM_ScanHandle *scan, Expr *cond){
 
 }
 
-//net function
-
-
-
-
-
+//next function
 
 
 
@@ -423,6 +418,27 @@ extern RC closeScan (RM_ScanHandle *scan){
     free(scan);
 
     return RC_OK;
+}
+
+//createSchema
+extern Schema *createSchema (int numAttr, char **attrNames, DataType *dataTypes, int *typeLength, int keySize, int *keys){
+    Schema *create_schema = (Schema *)malloc(sizeof(Schema));
+
+    create_schema -> numAttr = numAttr;
+    create_schema ->attrNames = attrNames;
+    create_schema->dataTypes = dataTypes;
+    create_schema->keyAttrs = keys;
+    create_schema->keySize = keySize;
+    create_schema->typeLength = typeLength;
+
+    return create_schema;
+}
+
+//freeSchema
+extern RC freeSchema (Schema *schema){
+    free(schema);
+    return RC_OK;
+
 }
 
 
