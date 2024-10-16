@@ -420,6 +420,31 @@ extern RC closeScan (RM_ScanHandle *scan){
     return RC_OK;
 }
 
+/********************************  Schema FUNCTIONS  **************************************************/
+
+extern int getRecordSize(Schema *schema){
+    int total_size = 0;
+    for(int i = 0; i<schema->numAttr; i++){
+        switch(schema->dataTypes[i]){
+            case DT_INT:
+                total_size +=sizeof(int);
+                break;
+            case DT_STRING:
+                total_size += schema->typeLength[i];
+                break;
+            case DT_BOOL:
+                total_size +=sizeof(bool);
+                break;
+            case DT_FLOAT:
+                total_size +=sizeof(float);
+                break;
+            default:
+                return RC_ERROR;
+        }
+    }
+    return total_size;
+}
+
 //createSchema
 extern Schema *createSchema (int numAttr, char **attrNames, DataType *dataTypes, int *typeLength, int keySize, int *keys){
     Schema *create_schema = (Schema *)malloc(sizeof(Schema));
@@ -431,6 +456,10 @@ extern Schema *createSchema (int numAttr, char **attrNames, DataType *dataTypes,
     create_schema->keySize = keySize;
     create_schema->typeLength = typeLength;
 
+    //Check if the allocation worked good
+    if(create_schema->attrNames == NULL || create_schema->dataTypes == NULL, create_schema->typeLength == NULL || create_schema->keyAttrs == NULL){
+        return create_schema;
+    }
     return create_schema;
 }
 
@@ -440,5 +469,3 @@ extern RC freeSchema (Schema *schema){
     return RC_OK;
 
 }
-
-
