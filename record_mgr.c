@@ -25,6 +25,14 @@ typedef struct RecordManager{
     int num_scanned;
 } RecordManager;
 
+//Strture for scan functions
+typedef struct RM_ScanManager{
+    Expr *cond;
+    Record *current_record;
+    int current_page;
+    int current_slot;
+    int scanned_count;
+} RM_ScanManager;
 //Now, the maximum number of pages is defined in permanent manner
 const int maxPages = 100;
 //Maximum Attribute name length
@@ -319,4 +327,78 @@ extern RC insertRecord (RM_TableData *rel, Record *record){
     return RC_OK;
 
 }
+
+//deleteRecord - This function is to delete a record
+// RID -> this id contains the page and slot to be deleted
+extern RC deleteRecord (RM_TableData *rel, RID id){
+    RecordManager *record_mgr = (RecordManager *)rel->mgmtData;
+    BM_PageHandle pH;
+
+    //Pin the page to be deleted
+    RC delete_page = pinPage(&record_mgr->poolconfig, &pH, id.page);
+    if(delete_page != RC_OK){
+        return delete_page;
+    }
+
+    //Locate the slot
+    int record_size = getRecordSize(rel->schema);
+    char *slot_pointer = pH.data + (id.slot * record_size);
+
+    //Mark the slot as empty
+    memset(slot_pointer, '\0', record_size);
+
+    //As the page has been modified, mark the page as dirty
+    delete_page = markDirty(&record_mgr->poolconfig, &pH);
+    if(delete_page != RC_OK){
+        return delete_page;
+    }
+
+    //After deletion, the page should be unpinned
+    delete_page = unpinPage(&record_mgr->poolconfig, &pH);
+    if(delete_page!=RC_OK){
+        return delete_page;
+    }
+    
+    //Decrement the number of tuples
+    record_mgr->num_tuples = record_mgr->num_tuples - 1;
+
+    return RC_OK;
+}
+
+//Update Record function
+
+/********************************  SCAN FUNCTIONS  **************************************************/
+//startScan will be used to initialize scan operation on table
+//A condition will be provided and scan operation will funciton only if the condition is satisfied
+extern RC startScan (RM_TableData *rel, RM_ScanHandle *scan, Expr *cond){
+    if(cond == NULL)    return RC_CONDITION_NOT_FOUND;
+    RM_ScanManager *scan_manager = (RM_ScanManager *) malloc(sizeof(RM_ScanManager));
+    if(scan_manager == NULL){
+        return RC_FILE_NOT_FOUND;
+    }
+    scan->mgmtData = scan_manager;
+    scan->rel = rel;
+
+    //Initialize the scan with condition and start from first page
+    scan_manager->cond = cond;
+    scan_manager->current_page = 1;
+    scan_manager->current_slot = 0;
+    scan_manager->scanned_count = 0;
+
+    //Allocate memory for current record
+    scan_manager->current_record = (Record *) malloc(sizeof(Record));
+    if(scan_manager->current_record == NULL){
+        free(scan_manager);
+        return RC_ERROR;
+    }
+    //Set management data in scan handle
+    scan->mgmtData = scan_manager;
+    //Set the relation in scan handle
+    scan->rel = rel;
+    return RC_OK;
+
+}
+
+
+
 
