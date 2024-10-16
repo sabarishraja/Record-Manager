@@ -366,7 +366,39 @@ extern RC deleteRecord (RM_TableData *rel, RID id){
 }
 
 //Update Record function
+//Steps to be followed for this function:
+//pin the required page, find the correct slot using RID.
+//memcpy will be used to copy the data into slot
+//after modifying the data, mark the page dirty
+//Unpin the page
+extern RC updateRecord (RM_TableData *rel, Record *record){
+    RecordManager *record_mgr = (RecordManager *) rel->mgmtData;
+    BM_PageHandle pH;
+    //Pinning the page containing record
+    RC status = pinPage(&record_mgr->poolconfig, &pH, record->id.page);
+    if(status!=RC_OK){
+        return status;
+    }
+    //Locate the record using correct slot with the help of RID
+    int record_size = getRecordSize(rel->schema);
+    char *slot_pointer = pH.data + (record->id.slot * record_size);
 
+    //Copying the new data into slot
+    memcpy(slot_pointer, record->data, record_size);
+
+    //As the data has been modified now, we can mark the page as dirty
+    status = markDirty(&record_mgr->poolconfig, &pH);
+    if(status!=RC_OK){
+        //Even though the unpinning will happen after marking the page dirty, 
+        //it is better to unpin the page if marking page dirty fails
+        unpin(&record_mgr->poolconfig, &pH);
+        return status;
+    }
+    //Unpin page after modifying the data
+    status= unpinPage(&record_mgr->poolconfig, &pH);
+    if(status!=RC_OK)    return status;
+    return RC_OK;
+}
 /********************************  SCAN FUNCTIONS  **************************************************/
 //startScan will be used to initialize scan operation on table
 //A condition will be provided and scan operation will funciton only if the condition is satisfied
