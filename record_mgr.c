@@ -399,6 +399,30 @@ extern RC startScan (RM_TableData *rel, RM_ScanHandle *scan, Expr *cond){
 
 }
 
+//net function
 
+
+
+
+
+
+
+
+//closeScan function 
+extern RC closeScan (RM_ScanHandle *scan){
+    if(scan == NULL || scan->mgmtData == NULL){
+        return RC_ERROR;
+    }
+    ((RM_ScanManager *)scan->mgmtData)->current_record = NULL;
+    free(((RM_ScanManager *)scan->mgmtData)->current_record);
+
+    scan->mgmtData = NULL;
+    free(scan->mgmtData);
+
+    scan = NULL;
+    free(scan);
+
+    return RC_OK;
+}
 
 
