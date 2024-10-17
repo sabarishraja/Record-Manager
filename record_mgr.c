@@ -399,6 +399,41 @@ extern RC updateRecord (RM_TableData *rel, Record *record){
     if(status!=RC_OK)    return status;
     return RC_OK;
 }
+
+//getRecord fucntion is used to get a record with the help of RID
+//Only read operation on data is going to be performed
+//pin the page, locate the slot using RID and then copy data from page's slot into record structure
+extern RC getRecord (RM_TableData *rel, RID id, Record *record){
+    RecordManager *record_mgr = (RecordManager *) rel->mgmtData;
+
+    //Pin the page where the record is stored
+    BM_PageHandle pH;
+    RC status = pinPage(&record_mgr->poolconfig, &pH, id.page);
+    if(status!=RC_OK){
+        return status;
+    }
+    //Calculate the size of record based on schema
+    int record_size = getRecordSize(rel->schema);
+    char *page_data = pH.data + (id.slot * record_size);
+    //Check if the slot is used, where + is an active slot
+    if(*page_data != "+"){
+        unpinPage(&record_mgr->poolconfig, &pH);
+        //Slot is empty and not used
+        return RC_NO_TUPLE_RID;
+    }
+    //Copying the record data to record structure
+    record->id = id;
+    memcpy(record->data, page_data + 1 , record_size - 1 );
+
+    //Unpin page after use
+    status = unpinPage(&record_mgr->poolconfig, &pH);
+    if(status!=RC_OK){
+        return status;
+    }
+
+    return RC_OK;
+}
+
 /********************************  SCAN FUNCTIONS  **************************************************/
 //startScan will be used to initialize scan operation on table
 //A condition will be provided and scan operation will funciton only if the condition is satisfied
