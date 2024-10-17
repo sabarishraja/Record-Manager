@@ -30,6 +30,7 @@ typedef int RC;
 // Added new definitions for Record Manager
 #define RC_NO_TUPLE_RID 600
 #define RC_CONDITION_NOT_FOUND 601
+#define RC_CREATE_RECORD_FAILED 403
 #define RC_ERROR 404
 #define RC_Pinned_page_in_buffer 143
 

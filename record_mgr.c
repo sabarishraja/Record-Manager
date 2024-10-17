@@ -536,3 +536,32 @@ extern RC freeSchema (Schema *schema){
     return RC_OK;
 
 }
+
+/********************************  Record and Attribute FUNCTIONS  **************************************************/
+extern RC createRecord (Record **record, Schema *schema){
+    Record *new_record = (Record *)malloc(sizeof(Record));
+    if(record == NULL) return RC_CREATE_RECORD_FAILED;
+    int record_size = getRecordSize(schema);
+    new_record ->data = (char *)malloc(sizeof(char));
+    
+    //As a new record is created the page and slot are initialized to -1
+    new_record->id.page = -1;
+    new_record->id.slot = -1;
+    if(new_record->data == NULL)    return RC_FILE_HANDLE_NOT_INIT;
+
+    return RC_OK;
+
+}
+
+//freeRecord function is used to free the memory
+extern RC freeRecord (Record *record){
+    free(record);
+    return RC_OK;
+}
+
+extern RC getAttr (Record *record, Schema *schema, int attrNum, Value **value){
+
+}
+extern RC setAttr (Record *record, Schema *schema, int attrNum, Value *value){
+    
+}
