@@ -623,5 +623,31 @@ extern RC getAttr (Record *record, Schema *schema, int attrNum, Value **value){
     return RC_OK;
 }
 extern RC setAttr (Record *record, Schema *schema, int attrNum, Value *value){
+    int offset = 0;
+    if(attrOffset(schema, attrNum, &offset) != RC_OK){
+        return RC_OK;
 
+    }
+    //Pointer to the location where attribute's data will be written
+    char *attr_data = record->data + offset;
+    switch(schema->dataTypes[attrNum]){
+        case DT_STRING:
+            char *str = (char *)malloc(schema->typeLength[attrNum]);
+            str = value->v.stringV;
+            memcpy(attr_data, str, schema->typeLength);
+            break;
+        case DT_INT:
+            memcpy(attr_data, &(value->v.intV), sizeof(int));
+            break;
+        case DT_FLOAT:
+            memcpy(attr_data, &(value->v.floatV), sizeof(float));
+            break;
+        case DT_BOOL:
+            memcpy(attr_data, &(value->v.boolV), sizeof(bool));
+            break;
+        default:
+            return RC_UNKNOWN_DATATYPE;
+    }
+    return RC_OK;
 }
+
