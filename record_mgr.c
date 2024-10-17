@@ -547,7 +547,7 @@ extern RC createRecord (Record **record, Schema *schema){
     //As a new record is created the page and slot are initialized to -1
     new_record->id.page = -1;
     new_record->id.slot = -1;
-    if(new_record->data == NULL)    return RC_FILE_HANDLE_NOT_INIT;
+    if(new_record->data == NULL)    return RC_CREATE_RECORD_FAILED;
 
     return RC_OK;
 
@@ -559,9 +559,69 @@ extern RC freeRecord (Record *record){
     return RC_OK;
 }
 
-extern RC getAttr (Record *record, Schema *schema, int attrNum, Value **value){
+//getAttr function is used to retrieve attribute from a record.
+//This is done by using offset which in turn is calculated by attrNum
+//Offset calculation should account all the data types - INT , BOOL, STRING, AND FLOAT
 
+extern RC getAttr (Record *record, Schema *schema, int attrNum, Value **value){
+    if(attrNum < 0 || attrNum >= schema->numAttr){
+        return RC_ERROR;
+    }
+    int offset = 0;
+    //Calculating offset accounting all data types
+    for(int i = 0; i< attrNum; i++){
+        switch(schema->dataTypes[i]){
+            case DT_INT:
+                offset += sizeof(int);
+                break;
+            case DT_FLOAT:
+                offset += sizeof(float);
+                break;
+            case DT_STRING:
+                offset += schema->typeLength[i];
+                break;
+            case DT_BOOL:
+                offset += sizeof(bool);
+                break;
+            default:
+                return RC_UNKNOWN_DATATYPE;
+        }
+    }
+    Value *attr = (Value *)malloc(sizeof(Value));
+    if(!attr){
+        return RC_MEMORY_ALLOCATION_FAILED;
+    }
+    char *data_pointer = record->data + offset;
+    attr->dt = schema->dataTypes[attrNum];
+    switch(attr->dt){
+        case DT_INT:
+            memcpy(&(attr->v.intV), data_pointer, sizeof(int));
+            break;
+        case DT_FLOAT:
+            memcpy(&(attr->v.floatV), data_pointer, sizeof(float));
+            break;
+        case DT_BOOL:
+            memcpy(&(attr->v.boolV), data_pointer, sizeof(bool));
+            break;
+        case DT_STRING:
+            //Memory allocation for string data type and ensuring null termination
+            attr->v.intV = (char *)malloc(schema->typeLength[attrNum] + 1);
+            if(!attr->v.stringV){
+                free(attrNum);
+                return RC_MEMORY_ALLOCATION_FAILED;
+            }
+            strncpy(attr->v.stringV, data_pointer, schema->typeLength[attrNum]);
+            attr->v.stringV[schema->typeLength[attrNum]] = '\0';
+
+            break;
+        default:
+            free(attr);
+            return RC_RM_UNKOWN_DATATYPE;
+        
+    }
+    *value = attr;
+    return RC_OK;
 }
 extern RC setAttr (Record *record, Schema *schema, int attrNum, Value *value){
-    
+
 }

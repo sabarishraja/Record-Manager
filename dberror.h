@@ -33,6 +33,8 @@ typedef int RC;
 #define RC_CREATE_RECORD_FAILED 403
 #define RC_ERROR 404
 #define RC_Pinned_page_in_buffer 143
+#define RC_MEMORY_ALLOCATION_FAILED 700
+#define RC_UNKNOWN_DATATYPE 701
 
 /* holder for error messages */
 extern char *RC_message;
