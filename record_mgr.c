@@ -23,6 +23,7 @@ typedef struct RecordManager{
     int max_slots;
     //Number of scanned records
     int num_scanned;
+    Expr *cond;
 } RecordManager;
 
 //Strture for scan functions
@@ -467,6 +468,66 @@ extern RC startScan (RM_TableData *rel, RM_ScanHandle *scan, Expr *cond){
 }
 
 //next function
+/*The main purpose of main function is to check each record in with a condition
+and then returning the next record*/
+extern RC next (RM_ScanHandle *scan, Record *record) {
+    RM_ScanManager *scan_mgr = (RM_ScanManager*) scan->mgmtData;
+    RecordManager *record_mgr = (RecordManager*) scan->rel->mgmtData;
+    BM_PageHandle pH;
+    int record_size = getRecordSize(scan->rel->schema);
+    RC status;
+    
+    // Iterate through pages starting from the current page
+    while (scan_mgr->current_page <= record_mgr->last_page) {
+        // Pin the current page to scan records
+        status = pinPage(&record_mgr->poolconfig, &pH, scan_mgr->current_page);
+        if (status != RC_OK) {
+            return status;
+        }
+        
+        // Iterate through slots on the current page
+        while (scan_mgr->current_slot < record_mgr->max_slots) {
+            char *slot_pointer = pH.data + (scan_mgr->current_slot * record_size);
+            
+            // Check if the slot contains a valid record
+            if (*slot_pointer != '\0') {
+                // Set the record's id and data
+                record->id.page = scan_mgr->current_page;
+                record->id.slot = scan_mgr->current_slot;
+                memcpy(record->data, slot_pointer, record_size);
+                
+                // Apply the condition (if any)
+                Value *result;
+                evalExpr(record, scan->rel->schema, scan_mgr->cond, &result);
+                if (result->v.boolV) {
+                    // Unpin the page and return the record if it satisfies the condition
+                    status = unpinPage(&record_mgr->poolconfig, &pH);
+                    if (status != RC_OK) {
+                        return status;
+                    }
+                    scan_mgr->current_slot++;
+                    scan_mgr->scanned_count++;
+                    return RC_OK;
+                }
+            }
+            // Move to the next slot if the current slot does not contain a valid record
+            scan_mgr->current_slot++;
+        }
+        
+        // Unpin the page after scanning all slots
+        status = unpinPage(&record_mgr->poolconfig, &pH);
+        if (status != RC_OK) {
+            return status;
+        }
+        
+        // Move to the next page and reset the slot index
+        scan_mgr->current_page++;
+        scan_mgr->current_slot = 0;
+    }
+
+    // If no more records are found, return RC_RM_NO_MORE_TUPLES
+    return RC_RM_NO_MORE_TUPLES;
+}
 
 
 
